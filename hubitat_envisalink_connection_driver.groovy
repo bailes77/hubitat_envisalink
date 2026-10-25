@@ -31,7 +31,7 @@
 
 import groovy.transform.Field
 
-def version() { return "Envisalink 0.16.0" }
+def version() { return "Envisalink 0.16.1" }
 metadata {
 		definition (name: "Envisalink Connection", 
 			namespace: "dwb", 
@@ -48,6 +48,7 @@ metadata {
    		capability "Presence Sensor"
 			
 			attribute   "Status", "string"
+			attribute   "Battery Trouble", "string"
 			attribute   "Codes", "json"
 			attribute   "LastUsedCodePosition", "string"
 			attribute   "LastUsedCodeName", "string"
@@ -89,7 +90,7 @@ metadata {
 			input("passwd", "text", title: "Password", required: true)
 			input("masterCode", "text", title: "Master Code", required: true)
 			input("installerCode", "text", title: "Installer Code", description: "Installer Code is required if you wish to program the panel from this driver", required: false)
-            input("disablePartReady", "bool", title: "Disable Force Arming Enabled", description: "Removes Partition Ready Message", defaultVale: true)
+            input("disablePartReady", "bool", title: "Disable Force Arming Enabled", description: "Removes Partition Ready Message", defaultValue: false)
             def pollRate = ["0" : "Disabled", "1" : "Poll every minute", "5" : "Poll every 5 minutes", "10" : "Poll every 10 minutes", "15" : "Poll every 15 minutes", "30" : "Poll every 30 minutes (not recommended)"]
 			input ("poll_Rate", "enum", title: "Device Poll Rate", options: pollRate, defaultValue: 0)
 			if (installerCode) {
@@ -108,8 +109,12 @@ metadata {
 *   Platform Events
 */
 
+private ifDebug(message) {
+	if (isDebug) log.debug(message)
+}
+
 def installed() {
-	if(isDebug) log.debug("installed...")
+	ifDebug("installed...")
 	initialize()
 }
 
@@ -119,7 +124,7 @@ def updated() {
 		state.debug = isDebug
 		return
 		}
-	if(isDebug) log.debug("updated...")
+	ifDebug("updated...")
 	unschedule()
 	if(isDisabled) {
 		state.clear()
@@ -127,10 +132,9 @@ def updated() {
 		log.info("Envisalink is disabled!!")
 		return
 	}
-	if(isDebug) log.debug("Configuring IP: ${ip}, Code: ${masterCode}, Password: ${passwd}")
+	ifDebug("Configuring IP: ${ip}")
 		
 	initialize()
-	log.debug("deviceNetworkId ${device.deviceNetworkId}")
 
 	if (installerCode) {
 		//setDelays(entry_delay1, entry_delay2, exit_delay)
@@ -140,28 +144,28 @@ def setPoll() {
 	unschedule(poll)
 	switch(poll_Rate) {
 		case "0" :
-			if(isDebug) log.debug("Envisalink Polling is Disabled")
+			ifDebug("Envisalink Polling is Disabled")
 			return false
 			break
 		case "1" :
 			runEvery1Minute(poll)
-			if(isDebug) log.debug("Poll Rate set at 1 minute")
+			ifDebug("Poll Rate set at 1 minute")
 			break
 		case "5" :
 			runEvery5Minutes(poll)
-			if(isDebug) log.debug("Poll Rate set at 5 minutes")
+			ifDebug("Poll Rate set at 5 minutes")
 			break
 		case "10" :
 			runEvery10Minutes(poll)
-			if(isDebug) log.debug("Poll Rate set at 10 minutes")
+			ifDebug("Poll Rate set at 10 minutes")
 			break
 		case "15" :
 			runEvery15Minutes(poll)
-			if(isDebug) log.debug("Poll Rate set at 15 minutes")
+			ifDebug("Poll Rate set at 15 minutes")
 			break
 		case "30" :
 			runEvery30Minutes(poll)
-			if(isDebug) log.debug("Poll Rate set at 30 minutes")
+			ifDebug("Poll Rate set at 30 minutes")
 			break
 	}
 	return true
@@ -170,7 +174,7 @@ def setPoll() {
 def initialize() {
 	if(isDisabled) {
 		telnetClose()
-		log.debug("Envisalink is disabled!!")
+		ifDebug("Envisalink is disabled!!")
 		return
 	}
 	runIn(5, "telnetConnection")
@@ -188,111 +192,111 @@ def uninstalled() {
 */
 
 def ArmAway(){
-	if(isDebug) log.debug("armAway()")
+	ifDebug("armAway()")
 	state.armState = "arming_away"
 	composeArmAway()
 }
 
 def ArmHome(){
-	if(isDebug) log.debug("armHome()")
+	ifDebug("armHome()")
 	state.armState = "arming_home"
 	composeArmHome()
 }
 
 def ArmNight(){
-	if(isDebug) log.debug("armNight()")
+	ifDebug("armNight()")
 	state.armState = "arming_night"
 	composeArmNight()
 }
 
 def ArmAwayZeroEntry(){
-	if(isDebug) log.debug("ArmAwayZeroEntry()")
+	ifDebug("ArmAwayZeroEntry()")
 	composeZeroEntryDelayArm()
 }
 
 def both(){
-	if(isDebug) log.debug("both()")
+	ifDebug("both()")
 	siren()
 	strobe()
 }
 
 def BypassZone(zone){
-	if(isDebug) log.debug("BypassZone ${zone}")
+	ifDebug("BypassZone ${zone}")
 	composeBypassZone(zone as int)
 }
 
 def ChimeToggle(){
-	if(isDebug) log.debug("ChimeToggle()")
+	ifDebug("ChimeToggle()")
 	composeChimeToggle()
 }
 
 def deleteUserCode(position){
-	if(isDebug) log.debug("deleteUserCode ${position}")
+	ifDebug("deleteUserCode ${position}")
 	composeDeleteUserCode(position)
 }
 
 def Disarm(){
- 	if(isDebug) log.debug("Disarm()")
+	ifDebug("Disarm()")
 	composeDisarm()
 }
 
 def on(){
-	if(isDebug) log.debug("On")
+	ifDebug("On")
 	ArmAway()
 }
 
 def off(){
- 	if(isDebug) log.debug("Off")
+	ifDebug("Off")
 	Disarm()
 }
 
 def poll() {
-	if(isDebug) log.debug("Polling...")
+	ifDebug("Polling...")
 	composePoll()
 }
 
 def SoundAlarm(){
- 	if(isDebug) log.debug("Sound Alarm : NOT IMPLEMENTED")
+	ifDebug("Sound Alarm : NOT IMPLEMENTED")
 }
 
 def siren(){
-	if(isDebug) log.debug("Siren : NOT IMPLEMENTED")
+	ifDebug("Siren : NOT IMPLEMENTED")
 }
 
 def StatusReport(){
-	if(isDebug) log.debug("StatusReport")
+	ifDebug("StatusReport")
 	composeStatusReport()
 }
 
 def strobe(){
- 	if(isDebug) log.debug("Stobe : NOT IMPLEMENTED")
+	ifDebug("Stobe : NOT IMPLEMENTED")
 }
 
 def setUserCode(name, position, code){
-	if(isDebug) log.debug("setUserCode ${name} ${position} ${code}")
+	ifDebug("setUserCode ${name} ${position}")
 	composeSetUserCode(name, position, code)   
 }
 
 def setDelays(entry, entry2, exit){
-	if(isDebug) log.debug("setDelays ${entry} ${entry2} ${exit}")
+	ifDebug("setDelays ${entry} ${entry2} ${exit}")
 	composeSetDelays(entry, entry2, exit)
 }
 
 def ToggleTimeStamp(){
-	if(isDebug) log.debug("Toggle Time Stamp")
+	ifDebug("Toggle Time Stamp")
 	composeTimeStampToggle()
 }
 
 def Arrived(){
- 	if(isDebug) log.debug("Arrived()")
-	if(state.armstate == armed_away) {
+	ifDebug("Arrived()")
+	if(state.armState == "armed_away") {
 	composeDisarm()
 	}
 }
 
 def Departed() {
-	if(isDebug) log.debug("Departed()")
-	if(state.armstate != armed_away) {
+	ifDebug("Departed()")
+	if(state.armState != "armed_away") {
 		state.armState = "arming_away"
 		composeArmAway()
 		}
@@ -307,7 +311,7 @@ def Departed() {
 */
 
 def createZone(zoneInfo){
-	if(isDebug) log.debug( "Creating ${zoneInfo.zoneName} with label '${zoneInfo.zoneLabel}' with deviceNetworkId = ${zoneInfo.deviceNetworkId} of type: ${zoneInfo.zoneType} for panel type: " + PanelType)
+	ifDebug( "Creating ${zoneInfo.zoneName} with label '${zoneInfo.zoneLabel}' with deviceNetworkId = ${zoneInfo.deviceNetworkId} of type: ${zoneInfo.zoneType} for panel type: " + PanelType)
 	def newDevice
 	if (zoneInfo.zoneType == "0")
 	{
@@ -328,7 +332,7 @@ def createZone(zoneInfo){
 			newDevice.updateSetting("autoInactive",[type:"enum", value:disabled])
 		} else {
 			// Vista does not report motion sensor inactive... make it automatic
-			if(isDebug) log.debug("Setting autoInactive for Virtual Motion Sensor for Vista Panel")
+			ifDebug("Setting autoInactive for Virtual Motion Sensor for Vista Panel")
 			newDevice.updateSetting("autoInactive",[type:"enum", value:"180"])
 		}
 	} else if (zoneInfo.zoneType == "2") {
@@ -342,7 +346,7 @@ def createZone(zoneInfo){
 }
 
 def removeZone(zoneInfo){
-	if(isDebug) log.debug("Removing ${zoneInfo.zoneName} with deviceNetworkId = ${zoneInfo.deviceNetworkId}")
+	ifDebug("Removing ${zoneInfo.zoneName} with deviceNetworkId = ${zoneInfo.deviceNetworkId}")
 	deleteChildDevice(zoneInfo.deviceNetworkId)
 }
 
@@ -350,7 +354,7 @@ def removeZone(zoneInfo){
 *   Compositions
 */
 private composeArmAway(){
-	if(state.debug) log.debug("composeArmAway")
+	ifDebug("composeArmAway")
 	state.armState = "arming_away"
 	def message = tpiCommands["ArmAway"]
 	if(PanelType as int == 1) {
@@ -360,7 +364,7 @@ private composeArmAway(){
 }
 
 private composeArmHome(){
-	if(state.debug) log.debug("composeArmHome")
+	ifDebug("composeArmHome")
 	state.armState = "arming_home"
 	def message = tpiCommands["ArmHome"]
 	if(PanelType as int == 1) {
@@ -370,7 +374,7 @@ private composeArmHome(){
 }
 //CHANGED THIS TO ALLOW NIGHT ARMING FOR DSC PANELS
 private composeArmNight(){
-	if(state.debug) log.debug("composeArmNight")
+	ifDebug("composeArmNight")
 	state.armState = "arming_night"
 	def message = tpiCommands["ArmNight"]
 	if(PanelType as int == 1) {
@@ -381,9 +385,9 @@ private composeArmNight(){
 /*
 private composeArmNight(){
 	if(PanelType as int == 0) {
-		if(state.debug) log.debug("composeArmNight - NOT SUPPORTED BY DSC PANEL")
+		ifDebug("composeArmNight - NOT SUPPORTED BY DSC PANEL")
 	} else {
-		if(state.debug) log.debug("composeArmNight")
+		ifDebug("composeArmNight")
 		state.armState = "arming_night"
 		def message = masterCode + "33"
 		sendTelnetCommand(message)
@@ -393,29 +397,29 @@ private composeArmNight(){
 
 private composeBypassZone(int zone){
 	String message = String.format("0711*1%02d#", zone)
-	if(state.debug) log.debug("Bypass Zone command ${message}")
+	ifDebug("Bypass Zone command ${message}")
 		sendTelnetCommand(message)
 }
 
 private composeChimeToggle(){
-	if(state.debug) log.debug("composeChimeToggle")
+	ifDebug("composeChimeToggle")
 	def message = tpiCommands["ToggleChime"]
 	if(PanelType as int == 1) { message = masterCode + "9" }
 	sendTelnetCommand(message)
 }
 
 private composeEnterInstallerMode(){
-	if(state.debug) log.debug("composeEnterInstallerMode")
+	ifDebug("composeEnterInstallerMode")
 	composeKeyStrokes("*8" + installerCode)
 }
 
 private composeExitInstallerMode(){
-	if(state.debug) log.debug("composeExitInstallerMode")
+	ifDebug("composeExitInstallerMode")
 	composeKeyStrokes("##")
 }
 
 private composeDisarm(){
-	if(state.debug) log.debug("composeDisarm")
+	ifDebug("composeDisarm")
 	if (PanelType as int == 0){
 		def message = tpiCommands["Disarm"] + masterCode
 		sendTelnetCommand(message)
@@ -428,28 +432,28 @@ private composeDisarm(){
 }
 
 private composeDeleteUserCode(position){
-	if(state.debug) log.debug("composeDeleteUserCode ${position}")
+	ifDebug("composeDeleteUserCode ${position}")
 	def codePosition = position.toString()
 	codePosition = codePosition.padLeft(2, "0")
-	if(state.debug) log.debug("padded code position ${codePosition}")
+	ifDebug("padded code position ${codePosition}")
 	state.programmingMode = DELETEUSERCODEINITIALIZE
 	state.newCodePosition = codePosition
 	composeKeyStrokes("*5" + masterCode)
 }
 
 private composeInstallerCode(){
-	if(state.debug) log.debug("composeInstallerCode")
+	ifDebug("composeInstallerCode")
 	if(PanelType as int == 0) {
 		def sendTelnetCommand = tpiCommands["CodeSend"] + installerCode
-		if(state.debug) log.debug(sendTelnetCommand)
+		ifDebug("Sending installer code")
 		sendTelnetCommand(sendTelnetCommand)
 	} else {
-		if(state.debug) log.debug("Not supported by Vista TPI")
+		ifDebug("Not supported by Vista TPI")
 	}
 }
 
 private composeKeyStrokes(data){
-	if(state.debug) log.debug("composeKeyStrokes: ${data}")
+	ifDebug("composeKeyStrokes")
 	if(PanelType as int == 0) {
 		sendMessage = tpiCommands["SendKeyStroke"]
 	} else { sendMessage = "" }
@@ -457,17 +461,15 @@ private composeKeyStrokes(data){
 }
 
 private composeMasterCode(){
-	if(state.debug) log.debug("composeMasterCode")
+	ifDebug("composeMasterCode")
 	if(PanelType as int == 0) {
         def message = tpiCommands["CodeSend"] + masterCode
-		if(state.debug) log.debug(message)
 		//sendTelnetCommand(message)
         //EDITED TO SEND TELNET COMMAND A DIFFERENT WAY
         message = generateChksum(message)
-        if(state.debug) log.debug(message)
         sendHubCommand(new hubitat.device.HubAction(message, hubitat.device.Protocol.TELNET))
 	} else {
-		if(state.debug) log.debug("Not supported by Vista TPI")
+		ifDebug("Not supported by Vista TPI")
 	}
 }
 
@@ -486,19 +488,18 @@ private composePoll(){
 }
 
 private composeStatusReport(){
-	if(state.debug) log.debug("composeStatusReport")
+	ifDebug("composeStatusReport")
 	if(PanelType as int == 0) {
 		sendTelnetCommand(tpiCommands["StatusReport"])
 	} else {
-		if(state.debug) log.debug("Not supported by Vista TPI")
+		ifDebug("Not supported by Vista TPI")
 	}
 }
 
 private composeSetUserCode(name, position, code){
-	if(state.debug) log.debug("composeSetUserCode")
+	ifDebug("composeSetUserCode")
 	if(PanelType as int == 0) {
 		state.programmingMode = SETUSERCODE
-		if(state.debug) log.debug("Current Codes: ${device.currentValue("Codes")}")
 		if (!device.currentValue("Codes")){
 			def tempMap = [:]
 			def tempJson = new groovy.json.JsonBuilder(tempMap)
@@ -508,7 +509,7 @@ private composeSetUserCode(name, position, code){
 		codePosition = codePosition.padLeft(2, "0")
 		def newCode = code.toString()
 		newCode = newCode.padLeft(4, "0")
-		if(state.debug) log.debug("padded: ${codePosition} ${newCode}")
+		ifDebug("Setting user code at position ${codePosition}")
 
 		state.newCode = newCode
 		state.newCodePosition = codePosition
@@ -516,13 +517,13 @@ private composeSetUserCode(name, position, code){
 		state.programmingMode = SETUSERCODEINITIALIZE
 		composeKeyStrokes("*5" + masterCode)
 	} else {
-		if(state.debug) log.debug("Not supported by Vista TPI")
+		ifDebug("Not supported by Vista TPI")
 	}
 }
 
 private composeSetDelays(entry, entry2, exit){
-	if(state.debug) log.debug("composeSetDelays")
-	if(state.debug) log.debug("Not Yet Implemented")
+	ifDebug("composeSetDelays")
+	ifDebug("Not Yet Implemented")
 	// composeEnterInstallerMode()
 	// pauseExecution(7000)
 
@@ -546,7 +547,7 @@ private composeSetDelays(entry, entry2, exit){
 
 private composeTimeStampToggle(){
 	if(PanelType as int == 0) {
-		if(state.debug) log.debug("composeTimeStampToggle")
+		ifDebug("composeTimeStampToggle")
 
 		def message
 		if (state.timeStampOn)
@@ -557,12 +558,12 @@ private composeTimeStampToggle(){
 		}
 		sendTelnetCommand(message)
 	} else {
-		if(state.debug) log.debug("Not supported by Vista TPI")
+		ifDebug("Not supported by Vista TPI")
 	}
 }
 
 private composeZeroEntryDelayArm(){
-	if(state.debug) log.debug("composeZeroEntryDelayArm")
+	ifDebug("composeZeroEntryDelayArm")
 	def message = tpiCommands["ArmAwayZeroEntry"]
 	if(PanelType as int == 1) {
 		// equivilent to Arm Stay Instant
@@ -608,7 +609,7 @@ private parseVistaFlags(flagBitMask, flagBeep, alphaDisplay){
 */
 
 def parse(String message) {
-	if(isDebug) log.debug("Parsing Incoming message: [" + message + "]")
+	ifDebug("Parsing Incoming message: [" + message + "]")
 
 	//if(isDebug) log.debug("Response: ${tpiResponses[message.take(3) as int]}")
 	//if(isDebug) log.debug("Panel Type: " + PanelType)
@@ -619,7 +620,7 @@ def parse(String message) {
  		
 		switch (tpicmd) {
 		
-			case 500:			// Command Acknowlendge
+			case 500:			// Command Acknowledge
 				if (state.programmingMode == SETUSERCODESEND){
 				setUserCodeSend()
 			  }
@@ -645,6 +646,7 @@ def parse(String message) {
 					
 				case 510:      // Key Pad LED State
 					keypadLedState(message.substring(3,message.size()))
+					break
 				case 511:			// Keypad LED FLASH state
 					break
 					
@@ -717,7 +719,7 @@ def parse(String message) {
 							logError(PASSWORDINCORRECT)
 							break
 						case 1:			//  Password Correct
-							if(isDebug) log.debug(LOGINSUCCESSFUL)
+							ifDebug(LOGINSUCCESSFUL)
 							runIn(5, StatusReport)
 							break
 						case  2:			//  Time out
@@ -757,7 +759,7 @@ def parse(String message) {
           parseUser(message)
           break
 
-        case 800:			// Panel Battery Truble
+        case 800:			// Panel Battery Trouble
            if(device.currentValue("Battery Trouble") != 'on') {send_Event(name:"Battery Trouble", value: 'on')}
            break
          
@@ -794,10 +796,10 @@ def parse(String message) {
 
 	} else {
 
-		if(isDebug) log.debug("Panel Type: VISTA")
-		if(isDebug) log.debug("Processing VISTA message: ")
+		ifDebug("Panel Type: VISTA")
+		ifDebug("Processing VISTA message: ")
 		if(message.take(6) == "Login:") {
-			if(isDebug) log.debug("Received Login: request")
+			ifDebug("Received Login: request")
 			loginPrompt()
 		}
 
@@ -806,7 +808,7 @@ def parse(String message) {
 		}
 
 		if(message.take(2) == "OK") {
-			if(isDebug) log.debug(LOGINSUCCESSFUL)
+			ifDebug(LOGINSUCCESSFUL)
 		}
 
 		if(message.take(2) == "Timed Out!") {
@@ -815,7 +817,7 @@ def parse(String message) {
 
 
 		if(message.take(3) == "%00") {
-			if(isDebug) log.debug("Received %00 (Keypad Update) message")
+			ifDebug("Received %00 (Keypad Update) message")
 			// [%00,01,1C08,08,00,****DISARMED****  Ready to Arm  $]
 			def mPartition = message[4..5]
 			def mFlags = Integer.parseInt(message[7..10],16)
@@ -824,7 +826,7 @@ def parse(String message) {
 			mChime = mChime.isInteger() ? (mChime as int) : 0
 			def mDisplay = message[18..49]
 			def vistaFlags = parseVistaFlags(mFlags,mChime,mDisplay)
-			if(isDebug) log.debug("Vista FLAGS = " + vistaFlags.inspect())
+			ifDebug("Vista FLAGS = " + vistaFlags.inspect())
 
 			if ( vistaFlags.ALARM ) { zoneOpen("000" + mUserOrZone.toString(), false); partitionAlarm() }
 			else if ( vistaFlags.ALARM_FIRE || vistaFlags.FIRE_ALARM ) { partitionAlarm() }
@@ -835,7 +837,7 @@ def parse(String message) {
 			else if ( vistaFlags.ARMED_NIGHT ) { partitionArmedNight() }
 			else if ( vistaFlags.ARMED_STAY ) { partitionArmedHome() }
 			if ( mDisplay.startsWith("Alarm Canceled") ) {
-				if(isDebug) log.debug("     Keypad Update: Alarm Canceled!")
+				ifDebug("     Keypad Update: Alarm Canceled!")
 				// after a panic alarm, a disarm clears the alarm condition, but an additional
 				// disarm is required to return the panel to ready. This additional disarm can
 				// not be sent until after the panel announces that the alarm has been cancelled
@@ -843,32 +845,32 @@ def parse(String message) {
 				partitionDisarmed()
 			}
 			if ( mDisplay.startsWith("FAULT") ) {
-				if(isDebug) log.debug("     Keypad Update: Zone " + mUserOrZone + " Tripped!")
+				ifDebug("     Keypad Update: Zone " + mUserOrZone + " Tripped!")
 				zoneOpen("000" + mUserOrZone.toString())
 			}
 			if ( mDisplay.startsWith("BYPAS") ) {
-				if(isDebug) log.debug("     Keypad Update: Zone " + mUserOrZone + " Bypassed!")
+				ifDebug("     Keypad Update: Zone " + mUserOrZone + " Bypassed!")
 			}
 			if ( mDisplay.startsWith("CHECK") ) {
 				// check is fired when the zone is tripped and it is Vista zone type 12 (24hr monitor)
                 //log.info "Vista CHECK just ran.." 
-				if(isDebug) log.debug("     Keypad Update: Zone " + mUserOrZone + " CHECK notification!")
+				ifDebug("     Keypad Update: Zone " + mUserOrZone + " CHECK notification!")
 				zoneOpen("000" + mUserOrZone.toString(), true)
 			}
 			if ( mDisplay.startsWith("TRBL") ) {
-				if(isDebug) log.debug("     Keypad Update: Zone " + mUserOrZone + " TROUBLE/TAMPER notification!")
+				ifDebug("     Keypad Update: Zone " + mUserOrZone + " TROUBLE/TAMPER notification!")
 				zoneTamper("000" + mUserOrZone.toString())
 			}
 		}  
 		if(message.take(3) == "%01") {
-			if(isDebug) log.debug("Received %01 (Zone State Change) message")
+			ifDebug("Received %01 (Zone State Change) message")
 			def ZoneState = Integer.parseInt(message[18..19] + message[16..17] + message[14..15] + message[12..13] + message[10..11] + message[8..9] + message[6..7] + message[4..5],16)
 			//log.info "OLD Zone State Change: Zone String [" + ZoneState + "]" 
             //log.info "OLD ZoneMessage: $message"
-			if(isDebug) log.debug("         Zone State Change: Zone String [" + ZoneState + "]")
+			ifDebug("         Zone State Change: Zone String [" + ZoneState + "]")
 			for (i = 1; i <65; i++) {
 				if ( ZoneState & (2**(i-1)) ) {
-					if(isDebug) log.debug ("     Zone State Change: Zone " + i + " Tripped!")
+					ifDebug("     Zone State Change: Zone " + i + " Tripped!")
                     //log.info "OLD Zone State Change: Zone " + i + " Open"
 					zoneOpen("000" + i.toString())
 				} else {
@@ -878,7 +880,7 @@ def parse(String message) {
 			}
 		}
 		if(message.take(3) == "%02") {
-			if(isDebug) log.debug("Received %02 (Partition State Change) message")
+			ifDebug("Received %02 (Partition State Change) message")
 			def p1Status = Integer.parseInt(message[4..5])
 			def p2Status = Integer.parseInt(message[6..7])
 			def p3Status = Integer.parseInt(message[8..9])
@@ -895,9 +897,9 @@ def parse(String message) {
 				8:"Partition is in Alarm",
 				9:"Alarm Has Occurred (Alarm in Memory)"
 			]
-			if(isDebug) log.debug("        Partition 1: " + partitionStates[p1Status])
-			if(isDebug) log.debug("        Partition 2: " + partitionStates[p2Status])
-			if(isDebug) log.debug("        Partition 3: " + partitionStates[p3Status])
+			ifDebug("        Partition 1: " + partitionStates[p1Status])
+			ifDebug("        Partition 2: " + partitionStates[p2Status])
+			ifDebug("        Partition 3: " + partitionStates[p3Status])
 			if (p1Status == 1) {
 				partitionDisarmed()
 			}
@@ -924,12 +926,12 @@ def parse(String message) {
 			}
 		}
 		if(message.take(3) == "%03") {
-			if(isDebug) log.debug("Received %03 (Realtime CID Event) message")
+			ifDebug("Received %03 (Realtime CID Event) message")
 			def mQualifier = message[4]
 			def mCIDCode = message[5..7]
 			def mPartition = message[8..9]
 			def mZoneOrUser = message[10..12]
-			if(isDebug) log.debug("  Q: [" + mQualifier +"] CID: [" + mCIDCode + "] Partition: [" + mPartition + "] Zone/User: [" + mZoneOrUser + "]")
+			ifDebug("  Q: [" + mQualifier +"] CID: [" + mCIDCode + "] Partition: [" + mPartition + "] Zone/User: [" + mZoneOrUser + "]")
 			def (String mCIDCategory, String mCIDType, String mCIDDataType, String mCIDDescription, String mCIDDetail) = getCIDQualifier(mQualifier, mCIDCode)
 			def mUser = ""
 			def mUserName = ""
@@ -958,20 +960,20 @@ def parse(String message) {
 			send_Event(name: "CID_Partition", value: mPartition, isStateChange: true)
 			send_Event(name: "CID_UserZone", value:mZoneOrUser, isStateChange: true)
 			send_Event(name: "CID_DATA", value: CID_DATA, isStateChange: true)
-			if(isDebug) log.debug("  CID_Code: [" + mCIDCode +"] CID_Type: [" + mCIDType + "] CID_Partition: [" + mPartition + "] Zone/User: [" + mZoneOrUser + "] CID_DATA: [" + CID_DATA.inspect() + "]")
+			ifDebug("  CID_Code: [" + mCIDCode +"] CID_Type: [" + mCIDType + "] CID_Partition: [" + mPartition + "] Zone/User: [" + mZoneOrUser + "] CID_DATA: [" + CID_DATA.inspect() + "]")
 		
 		}
 		if(message.take(3) == "%FF") {
-			if(isDebug) log.debug("Received %FF (Zone Timer Dump) message")
+			ifDebug("Received %FF (Zone Timer Dump) message")
 		}
 		if(message.take(2) == "^0") {
-			if(isDebug) log.debug("Received command acknowledge message (${message})")
+			ifDebug("Received command acknowledge message (${message})")
 		}
 	}
 }
 
 private getCIDQualifier(String Event, String Code) {
-	if(state.debug) log.debug("getCIDQualifier:   Event: [" + Event +"]  Code: [" + Code + "]")
+	ifDebug("getCIDQualifier:   Event: [" + Event +"]  Code: [" + Code + "]")
 	def qCode = Code[0..1]
 // 	["40"] = {"Open/Close","Opening","Closing"},
 //	["400"] = {"Open/Close","User","The specified user has disarmed/armed the system"},
@@ -987,12 +989,12 @@ private getCIDQualifier(String Event, String Code) {
 	def qDescription = CIDDescriptions[Code] ? CIDDescriptions[Code][0] : ""
 	def qUZType = CIDDescriptions[Code] ? CIDDescriptions[Code][1] : ""
 	def qDetail = CIDDescriptions[Code] ? CIDDescriptions[Code][2] : ""
-	if(state.debug) log.debug("getCIDQualifier:   qCategory: [" + qCategory +"]  qType: [" + qType + "]  qUZType: [" + qUZType + "]  qDescription: [" + qDescription + "]  qDetail: [" + qDetail + "]")
+	ifDebug("getCIDQualifier:   qCategory: [" + qCategory +"]  qType: [" + qType + "]  qUZType: [" + qUZType + "]  qDescription: [" + qDescription + "]  qDetail: [" + qDetail + "]")
 	return [qCategory, qType, qUZType, qDescription, qDetail]
 }
 
 private sendTelnetLogin(){
-	if(state.debug) log.debug("sendTelnetLogin: ${passwd}")
+	ifDebug("sendTelnetLogin: [password masked]")
 	def cmdToSend =  "${passwd}"
 	if(PanelType as int == 0) {
 		cmdToSend =  tpiCommands["Login"] + "${passwd}"
@@ -1011,13 +1013,13 @@ private sendTelnetCommand(String s) {
 	if(PanelType as int == 0) {
 		s = generateChksum(s)
 	}
-	if(state.debug) log.debug("sendTelnetCommand $s")
+	ifDebug("Sending telnet command")
 	return new hubitat.device.HubAction(s, hubitat.device.Protocol.TELNET)
 }
 
 private sendProgrammingMessage(String s){
 	s = generateChksum(s)
-	if(state.debug) log.debug("sendProgrammingMessage: ${s}")
+	ifDebug("Sending programming message")
 	def hubaction = new hubitat.device.HubAction(s, hubitat.device.Protocol.TELNET) 
 	sendHubCommand(hubaction);
 }
@@ -1051,7 +1053,7 @@ def telnetStatus(String status){
 		send_Evt(name: "networkStatus", value: "offline")
 		telnetClose()
 		logError("Telnet is restarting...")
-//		runIn(15, telnetConnection)
+		runIn(15, telnetConnection)
 		}
 }
 
@@ -1066,7 +1068,7 @@ private checkTimeStamp(message){
 //	if (message =~ timeStampPattern){
 		if((message.length() > 9) && (message[2] == ':') && (message[8] == ' ')) {
 		if(!state.timeStampOn) {
-			if(state.debug) log.debug("Time Stamp Found")
+			ifDebug("Time Stamp Found")
 			state.timeStampOn = true;
 			}
 		//message = message.replaceAll(timeStampPattern, "")
@@ -1075,29 +1077,27 @@ private checkTimeStamp(message){
 	} else {
 		if(state.timeStampOn) {
 			state.timeStampOn = false;
-			if(state.debug) log.debug("Time Stamp Not Found")
+			ifDebug("Time Stamp Not Found")
 			}
 	}
 	return message
 }
 
 private deleteUserCodeSend(){
-	if(state.debug) log.debug("deleteUserCodeSend")
+	ifDebug("deleteUserCodeSend")
 	state.programmingMode = DELETEUSERCOMPLETE
 	pauseExecution(3000)
 	composeKeyStrokes("#")
 }
 
 private deleteUserCodeComplete(){
-	if(state.debug) log.debug("deleteUserCodeComplete")
+	ifDebug("deleteUserCodeComplete")
 	state.programmingMode = ""
 	def storedCodes = new groovy.json.JsonSlurper().parseText(device.currentValue("Codes"))
 	assert storedCodes instanceof Map
 
-	if(state.debug) log.debug("storedCodes: ${storedCodes}")
 	def selectedCode = storedCodes[state.newCodePosition]
 
-	if(state.debug) log.debug("Selected Code: ${selectedCode}")
 	storedCodes.remove(state.newCodePosition.toString())
 
 	def json = new groovy.json.JsonBuilder(storedCodes)
@@ -1109,20 +1109,20 @@ private deleteUserCodeComplete(){
 }
 
 private entryDelay(){
-	if(state.debug) log.debug("entryDelay")
+	ifDebug("entryDelay")
 	send_Event(name:"Status", value: ENTRYDELAY)
 	state.armState = "intrusion"
 	parent.speakEntryDelay()
 }
 
 private exitDelay(){
-	if(state.debug) log.debug("exitDelay")
+	ifDebug("exitDelay")
 	send_Event(name:"Status", value: EXITDELAY)
 	parent.speakExitDelay()
 }
 
 private generateChksum(String cmdToSend){
-	if(state.debug) log.debug("generateChksum")
+	ifDebug("generateChksum")
 //	def cmdArray = cmdToSend.toCharArray()
 //	if(state.debug) log.debug("cmdArray: ${cmdArray}")
 	int cmdSum = 0
@@ -1139,60 +1139,56 @@ private getReTry(Boolean inc){
 	def reTry = (state.reTryCount ?: 0).toInteger()
 	if (inc) reTry++
 	state.reTryCount = reTry
- log.debug("reTry=$state.reTry")
+	ifDebug("reTry=$state.reTryCount")
 	return reTry
 }
 
-//private ifDebug(msg){
-//	parent.ifDebug('Connection Driver: ' + (msg ?: ""))
-//}
-
 private loginPrompt(){
-	if(state.debug) log.debug("loginPrompt")
+	ifDebug("loginPrompt")
 	send_Event(name: "networkStatus", value: "online")
-	if(state.debug) log.debug("Connection to Envisalink established")
+	ifDebug("Connection to Envisalink established")
 	state.reTryCount = 0
 	sendTelnetLogin()
-	if(state.debug) log.debug(LOGINPROMPT)
+	ifDebug(LOGINPROMPT)
 }
 
 private keypadLockout(){
-	if(state.debug) log.debug("keypadLockout")
+	ifDebug("keypadLockout")
 	send_Event(name:"Status", value: KEYPADLOCKOUT)
 }
 
 private keypadLedState(ledState){
-	if(state.debug) log.debug("keypadLedState ${ledState}")
+	ifDebug("keypadLedState ${ledState}")
 	 if (ledState == "82" && state.programmingMode == SETUSERCODEINITIALIZE){
-		if(state.debug) log.debug("${KEYPADLEDSTATE} ${state.programmingMode}")
+		ifDebug("${KEYPADLEDSTATE} ${state.programmingMode}")
 		state.programmingMode = SETUSERCODESEND
 		composeKeyStrokes(state.newCodePosition + state.newCode)
 	}
 
 	if (ledState == "82" && state.programmingMode == DELETEUSERCODEINITIALIZE){
-		if(state.debug) log.debug("${KEYPADLEDSTATE} ${state.programmingMode}")
+		ifDebug("${KEYPADLEDSTATE} ${state.programmingMode}")
 		state.programmingMode = DELETEUSERCODE
 		composeKeyStrokes(state.newCodePosition + "*")
 	}
 
 	def ledBinary = Integer.toBinaryString(hubitat.helper.HexUtils.hexStringToInt(ledState))
 	def paddedBinary = ledBinary.padLeft(8, "0")
-	if(state.debug) log.debug("${paddedBinary}")
+	ifDebug("${paddedBinary}")
 
 	if (paddedBinary.substring(7,8) == "0"){
-		if(state.debug) log.debug("Partition Ready LED Off")
+		ifDebug("Partition Ready LED Off")
 	}
 
 	if (paddedBinary.substring(7,8) == "1"){
-		if(state.debug) log.debug("Partition Ready LED On")
+		ifDebug("Partition Ready LED On")
 	}
 }
 
 private TroubleStatus(trouble) {
-	if(state.debug) log.debug("TroubleStatus ${trouble}")
+	ifDebug("TroubleStatus ${trouble}")
 	def troubleBinary = Integer.toBinaryString(hubitat.helper.HexUtils.hexStringToInt(trouble))
 	def paddedBinary = troubleBinary.padLeft(8, "0")
-	if(state.debug) log.debug("${paddedBinary}")
+	ifDebug("${paddedBinary}")
   def s = []
   int value = trouble as Integer
   if(value & 1) s += "Service is Required"
@@ -1207,7 +1203,7 @@ private logError(msg){
 }
 
 private partitionReady(){
-		if(state.debug) log.debug("partitionReady")
+		ifDebug("partitionReady")
     def st = device.currentValue("Status")
     def sw = device.currentValue("switch")
     def co = device.currentValue("contact")
@@ -1228,7 +1224,7 @@ private partitionReady(){
 }
 
 private partitionNotReady(){
-	if(state.debug) log.debug("partitionNotReady")
+	ifDebug("partitionNotReady")
     //def st = device.currentValue("Status")
     //def sw = device.currentValue("switch")
     //def co = device.currentValue("contact")
@@ -1239,13 +1235,13 @@ private partitionNotReady(){
 }
 
 private partitionReadyForForcedArmEnabled(){
-	 if(state.debug) log.debug("partitionReadyForForcedArmEnabled")
+	 ifDebug("partitionReadyForForcedArmEnabled")
 	if (!disablePartReady && (device.currentValue("Status") != PARTITIONNOTREADYFORCEARMINGENABLED)) { send_Event(name:"Status", value: PARTITIONNOTREADYFORCEARMINGENABLED, isStateChange: true) }
 	if (device.currentValue("contact") != "closed") { send_Event(name:"contact", value: "closed") }
 }
 
 private partitionAlarm(){
-	if(state.debug) log.debug("partitionAlarm")
+	ifDebug("partitionAlarm")
 	if (device.currentValue("Status") != PARTITIONINALARM) { send_Event(name:"Status", value: PARTITIONINALARM, isStateChange: true) }
 	if (device.currentValue("contact") != "open") { send_Event(name:"contact", value: "open", isStateChange: true) }
 	state.armState = "alarming"
@@ -1253,7 +1249,7 @@ private partitionAlarm(){
 }
 
 private partitionDisarmed(){
-	if(state.debug) log.debug("partitionDisarmed")
+	ifDebug("partitionDisarmed")
     //def st = device.currentValue("Status")
     //def sw = device.currentValue("switch")
     //def co = device.currentValue("contact")
@@ -1268,7 +1264,7 @@ private partitionDisarmed(){
     //log.info "partitionDisarmed() state.armState = $state.armState: Status: $st switch: $sw contact: $co"
     // partitionDisarmed() state.armState = arming_home: Status: Ready switch: off contact: closed
     if ((state.armState != "disarmed")) { // && (state.alarmState != "arming_home") && (state.alarmState != "armed_home")) {
-		if(state.debug) log.debug("disarming")
+		ifDebug("disarming")
 		state.armState = "disarmed"
 		parent.unlockIt()
 		parent.switchItDisarmed()
@@ -1278,7 +1274,7 @@ private partitionDisarmed(){
 		if (location.hsmStatus != "disarmed")
 		{
              //log.info "partitionDisarmed: location.hsmStatus= $location.hsmStatus setting hsmSetArm=disarm"
-			sendLocationEvent(name: "hsmSetArm", value: "disarm"); if(state.debug) log.debug("sendLocationEvent(name:\"hsmSetArm\", value:\"disarm\")")
+			sendLocationEvent(name: "hsmSetArm", value: "disarm"); ifDebug("sendLocationEvent(name:\"hsmSetArm\", value:\"disarm\")")
 		}
 	}
 	if (device.currentValue("CID_Code") != "") {
@@ -1291,7 +1287,7 @@ private partitionDisarmed(){
 }
 
 private partitionArmedAway(){
-	if(state.debug) log.debug("partitionArmedAway")
+	ifDebug("partitionArmedAway")
 	if (device.currentValue("Status") != PARTITIONARMEDAWAY) { send_Event(name:"Status", value: PARTITIONARMEDAWAY, isStateChange: true) }
 	if (device.currentValue("switch") != "on") { send_Event(name:"switch", value: "on", isStateChange: true) }
 	if (device.currentValue("contact") != "closed") { send_Event(name:"contact", value: "closed", isStateChange: true) }
@@ -1304,7 +1300,7 @@ private partitionArmedAway(){
 }
 
 private partitionArmedHome(){
-	if(state.debug) log.debug("partitionArmedHome")
+	ifDebug("partitionArmedHome")
 	if (device.currentValue("Status") != PARTITIONARMEDHOME) { send_Event(name:"Status", value: PARTITIONARMEDHOME, isStateChange: true) }
 	if (device.currentValue("switch") != "on") { send_Event(name:"switch", value: "on", isStateChange: true) }
 	if (device.currentValue("contact") != "closed") { send_Event(name:"contact", value: "closed", isStateChange: true) }
@@ -1316,8 +1312,8 @@ private partitionArmedHome(){
 }
 
 private partitionArmedBypass(String status){
-	if(state.debug) log.debug("partitionArmedBypass")
-	if (device.currentValue("Status") != status) { send_Event(name:Status, value: status, isStateChange: true) }
+	ifDebug("partitionArmedBypass")
+	if (device.currentValue("Status") != status) { send_Event(name:"Status", value: status, isStateChange: true) }
 	if (device.currentValue("switch") != "on") { send_Event(name:"switch", value: "on", isStateChange: true) }
 	if (device.currentValue("contact") != "closed") { send_Event(name:"contact", value: "closed", isStateChange: true) }
 //	if (state.armState.contains("home")){
@@ -1329,7 +1325,7 @@ private partitionArmedBypass(String status){
 
 // CHANGED THIS TO READ A DIFFERENT KEYPAD STATE FOR NIGHT MODE
 private partitionArmedNight(){
-	if(state.debug) log.debug("partitionArmedNight")
+	ifDebug("partitionArmedNight")
 	if (device.currentValue("Status") != USERCLOSING) { send_Event(name:"Status", value: PARTITIONARMEDNIGHT, isStateChange: true) }
 	if (device.currentValue("switch") != "on") { send_Event(name:"switch", value: "on", isStateChange: true) }
 	if (device.currentValue("contact") != "closed") { send_Event(name:"contact", value: "closed", isStateChange: true) }
@@ -1337,24 +1333,22 @@ private partitionArmedNight(){
 }
 
 private parseUser(message){
-	if(state.debug) log.debug("parseUser")
+	ifDebug("parseUser")
 	def length = message.size()
 	def userPosition = message.substring(6,length)
-	if(state.debug) log.debug("${USEROPENING} - ${userPosition}" )
+	ifDebug("${USEROPENING} - ${userPosition}" )
 
 	send_Event(name:"LastUsedCodePosition", value: userPosition)
 
 	def storedCodes = new groovy.json.JsonSlurper().parseText(device.currentValue("Codes"))
 	assert storedCodes instanceof Map
 
-	if(state.debug) log.debug("storedCodes: ${storedCodes}")
 	def selectedCode = storedCodes[userPosition.toString()]
 	if(selectedCode instanceof Map) {
 	
 	assert selectedCode instanceof Map
 
-	if(state.debug) log.debug("Selected Code: ${selectedCode}")
-	if(state.debug) log.debug("Selected Code: ${selectedCode.name}")
+	ifDebug("Selected Code: ${selectedCode.name}")
 
 	if (selectedCode?.name){
 		send_Event(name:"LastUsedCodeName", value: selectedCode.name)
@@ -1381,21 +1375,20 @@ private removeChildDevices(delete) {
 }
 
 private setUserCodeSend(){
-	if(state.debug) log.debug("setUserCodeSend")
+	ifDebug("setUserCodeSend")
 	state.programmingMode = SETUSERCODECOMPLETE
-	if(state.debug) log.debug("COMMAND ACCEPTED")
+	ifDebug("COMMAND ACCEPTED")
 	pauseExecution(3000)
 	composeKeyStrokes("#")
 }
 
 private setUserCodeComplete(){
-	if(state.debug) log.debug("setUserCodeSend")
+	ifDebug("setUserCodeSend")
 	state.programmingMode = ""
 	def storedCodes = new groovy.json.JsonSlurper().parseText(device.currentValue("Codes"))
 	assert storedCodes instanceof Map
 	def newCodeMap = [name: (state.newName), code: (state.newCode.toString())]
 	storedCodes.put((state.newCodePosition.toString()), (newCodeMap))
-	if(state.debug) log.debug("storedCodes: ${storedCodes}")
 	def json = new groovy.json.JsonBuilder(storedCodes)
 	send_Event(name:"Codes", value: json, displayed:true, isStateChange: true)
 	state.newCode = ""
@@ -1405,7 +1398,7 @@ private setUserCodeComplete(){
 
 private systemArmed(){
 	if (state.armState != "armed_away"){
-		if(state.debug) log.debug("Armed Away")
+		ifDebug("Armed Away")
 		state.armState = "armed_away"
 		parent.lockIt()
 		parent.switchItArmed()
@@ -1413,14 +1406,14 @@ private systemArmed(){
 
 		if (location.hsmStatus != "armedAway")
 		{
-			sendLocationEvent(name: "hsmSetArm", value: "armAway"); if(state.debug) log.debug("sendLocationEvent(name:\"hsmSetArm\", value:\"armAway\")")
+			sendLocationEvent(name: "hsmSetArm", value: "armAway"); ifDebug("sendLocationEvent(name:\"hsmSetArm\", value:\"armAway\")")
 		}
 	}
 }
 
 private systemArmedHome(){
 	if (state.armState != "armed_home"){
-		if(state.debug) log.debug("Armed Home")
+		ifDebug("Armed Home")
 		state.armState = "armed_home"
 		parent.lockIt()
 		parent.switchItArmed()
@@ -1429,14 +1422,14 @@ private systemArmedHome(){
 		if (location.hsmStatus != "armedHome")
 		{
             //log.info "systemArmedHome() hsmStatus=$location.hsmStatus  setting hsmSetArm=armHome"
-			sendLocationEvent(name: "hsmSetArm", value: "armHome"); if(state.debug) log.debug("sendLocationEvent(name:\"hsmSetArm\", value:\"armHome\")")
+			sendLocationEvent(name: "hsmSetArm", value: "armHome"); ifDebug("sendLocationEvent(name:\"hsmSetArm\", value:\"armHome\")")
 		}
 	}
 }
 
 private systemArmedNight(){
 	if (state.armState != "armed_night"){
-		if(state.debug) log.debug("Armed Night")
+		ifDebug("Armed Night")
 		state.armState = "armed_night"
 		parent.lockIt()
 		parent.switchItArmed()
@@ -1444,7 +1437,7 @@ private systemArmedNight(){
 
 		if (location.hsmStatus != "armedNight")
 		{
-			sendLocationEvent(name: "hsmSetArm", value: "armNight"); if(state.debug) log.debug("sendLocationEvent(name:\"hsmSetArm\", value:\"armNight\")")
+			sendLocationEvent(name: "hsmSetArm", value: "armNight"); ifDebug("sendLocationEvent(name:\"hsmSetArm\", value:\"armNight\")")
 		}
 	}
 }
@@ -1453,7 +1446,7 @@ private systemError(message){
 	def errorcode = message[3..5] as int
 	logError("System Error: ${errorcode} - ${errorCodes[(errorcode)]}")
 
-	if (errorCodes[(message)] == "Receive Buffer Overrun"){
+	if (errorCodes[errorcode] == "Receive Buffer Overrun"){
 		composeKeyStrokes("#")
 	}
 }
@@ -1470,32 +1463,32 @@ private zoneOpen(message, Boolean autoReset = false){
   def zone = message[3..5]
 	def zoneDevice = getZoneDevice(zone)
 	if (zoneDevice){
-		if(state.debug) log.debug(zoneDevice)
+		ifDebug(zoneDevice)
 		if(zoneDevice.hasAttribute ("contact")) {
             if (zoneDevice.latestValue("contact") != "open") {
-                if(state.debug) log.debug("Contact $zone Open")
+                ifDebug("Contact $zone Open")
 			    zoneDevice.open()
 			    if ((PanelType as int == 1) && autoReset) { zoneDevice.unschedule(); zoneDevice.runIn(60,"close") }
             }
 		} else if(zoneDevice.hasAttribute ("motion")) {
-			    if(state.debug) log.debug("Motion $zone Active")
+			    ifDebug("Motion $zone Active")
 			    zoneDevice.active()
 			    if ((PanelType as int == 1) && autoReset) { zoneDevice.unschedule(); zoneDevice.runIn(245,"close") }
 		} else if(zoneDevice.hasAttribute ("carbonMonoxide")) {
           if (zoneDevice.latestValue("carbonMonoxide") == "clear") {
-			    if(state.debug) log.debug("CO Detector $zone Active")
+			    ifDebug("CO Detector $zone Active")
 			    zoneDevice.detected()
 			    if ((PanelType as int == 1) && autoReset) { zoneDevice.unschedule(); zoneDevice.runIn(60,"clear") }
             }
 		} else if(zoneDevice.hasAttribute ("smoke"))  {
           if (zoneDevice.latestValue("smoke") == "clear") {
-			    if(state.debug) log.debug("Smoke Detector $zone Active")
+			    ifDebug("Smoke Detector $zone Active")
 			    zoneDevice.detected()
 			    if ((PanelType as int == 1) && autoReset) { zoneDevice.unschedule(); zoneDevice.runIn(60,"clear") }
             }
 		} else if(zoneDevice.hasAttribute ("shock"))  {
           if (zoneDevice.latestValue("shock") == "clear") {
-			    if(state.debug) log.debug("GlassBreak Detector $zone Active")
+			    ifDebug("GlassBreak Detector $zone Active")
 			    zoneDevice.detected()
 			    if ((PanelType as int == 1) && autoReset) { zoneDevice.unschedule(); zoneDevice.runIn(60,"clear") }
             }
@@ -1508,38 +1501,33 @@ private zoneClosed(message){
   def zone = message[3..5]
 	def zoneDevice = getZoneDevice(zone)
 	if (zoneDevice){
-		if(state.debug) log.debug(zoneDevice)
+		ifDebug(zoneDevice)
 		if(zoneDevice.hasAttribute ("contact")) {
             if (zoneDevice.latestValue("contact") != "closed") {
-			    if(state.debug) log.debug("Contact Closed")
+			    ifDebug("Contact Closed")
 			    zoneDevice.close()
-                if ((PanelType as int == 1) && autoReset) zoneDevice.unschedule()
             }
 		} else if(zoneDevice.hasAttribute ("motion")) {
             if (zoneDevice.latestValue("motion") != "inactive") {
-                if(zoneDevice.getSetting("autoInactive") == "0") {
-			    if(state.debug) log.debug("Motion Inactive")
+                if(zoneDevice.getSetting("autoInactive")?.toString() == "0") {
+			    ifDebug("Motion Inactive")
 			    zoneDevice.inactive()
-			    if ((PanelType as int == 1) && autoReset) zoneDevice.unschedule()
                 }
             }
 		} else if(zoneDevice.hasAttribute ("carbonMonoxide")) {
           if (zoneDevice.latestValue("carbonMonoxide") != "clear") {
-			    if(state.debug) log.debug("CO Detector $zone Active")
+			    ifDebug("CO Detector $zone Active")
 			    zoneDevice.clear()
-			    if ((PanelType as int == 1) && autoReset) zoneDevice.unschedule()
             }
 		} else if(zoneDevice.hasAttribute ("smoke"))  {
           if (zoneDevice.latestValue("smoke") != "clear") {
-			    if(state.debug) log.debug("Smoke Detector $zone Active")
+			    ifDebug("Smoke Detector $zone Active")
 			    zoneDevice.clear()
-			    if ((PanelType as int == 1) && autoReset) zoneDevice.unschedule()
             }
 		} else if(zoneDevice.hasAttribute ("shock"))  {
           if (zoneDevice.latestValue("shock") != "clear") {
-			    if(state.debug) log.debug("GlassBreak Detector $zone Active")
+			    ifDebug("GlassBreak Detector $zone Active")
 			    zoneDevice.clear()
-			    if ((PanelType as int == 1) && autoReset) zoneDevice.unschedule()
             }
 		}
 	}
@@ -1565,7 +1553,7 @@ private zonesBypassed(String zones) {
 private zoneTamper(message){
 	def zone = message[3..5]
 	def zoneDevice = getZoneDevice(zone)
-	if(state.debug) log.debug(zoneDevice)
+	ifDebug(zoneDevice)
 	if (zoneDevice){
 		if (device.currentValue("tamper") != "detected") {
 			send_Event(name:"tamper", value: "detected", displayed:true, isStateChange: true)
@@ -1575,7 +1563,7 @@ private zoneTamper(message){
 }
 
 private send_Event(evnt) {
-	if(state.debug) log.debug("sendEvent(${evnt})")
+	ifDebug("sendEvent(${evnt.name})")
 	sendEvent(evnt)
 }
 private send_Evt (evt) {
@@ -2232,16 +2220,20 @@ private send_Evt (evt) {
 
 /***********************************************************************************************************************
 
+* version 0.16.1
+*   Fixed presence commands, system error recovery, telnet reconnects, and zone closure
+*   Unified debug logging and corrected metadata and event declarations
+*
 * version 0.16.0
 *   added trouble reporting and Battery error reporting
-*   added detectiof of app disabled
-&
+*   added detection of app disabled
+*
 * version 0.9.0
 *		Remove clearallzones - it messed up actual zones when armed with bypassed zones
 *   Reactivate Not ready status
-*   Add disable Partition ready status option\
+*   Add disable Partition ready status option
 *   rewrite most of the processing for better efficiency
-*		added BypassZone and Bypassed Zomes attribute
+*		added BypassZone and Bypassed Zones attribute
 * Version: 0.8.4
 *   mark.labuda Added ArmNight code for DSC panel
 * 
