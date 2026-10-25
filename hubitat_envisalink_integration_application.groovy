@@ -28,7 +28,7 @@
 import groovy.json.JsonSlurper
 import groovy.util.XmlSlurper
 
-def version() { return "Envisalink 0.5.4" }
+def version() { return "Envisalink 0.5.5" }
 
 definition(
     name: "Envisalink Integration",
@@ -156,23 +156,31 @@ def lockPage() {
 					input "disarmLocks", "capability.lock", title: "Which locks to unlock when disarmed?", required:false, multiple:true, submitOnChange:true
 					input "lockCodeLock", "capability.lock", title: "Lock for Lock Codes", required: false, multiple:false, submitOnChange:true
 					def lcText = lockCodeLock?.currentValue("lockCodes")
-					if (!lcText?.startsWith("{")) {
-						lcText = decrypt(lcText)
+					if (lcText && !lcText.trim().startsWith("{") && !lcText.trim().startsWith("[")) {
+						try {
+							lcText = decrypt(lcText)
+						} catch (Exception e) {
+							logError("Unable to read lock codes for the selected lock")
+							lcText = null
+						}
 					}
 					def lockCodesRaw
 					def lockCodes = []
-					if (lcText) lockCodesRaw = new JsonSlurper().parseText(lcText)
-					ifDebug("lockCodes for selected lock: ${lockCodesRaw}")
-					lockCodesRaw.each{
-						//ifDebug("lockCode ${it}")
-						def lockCodeValue = it.getValue()
-						ifDebug("lockCodeValue.name: ${lockCodeValue.name} - lockCodeValue.code: ${lockCodeValue.code}")
-						lockCodes << ["${lockCodeValue.code}": "${lockCodeValue.name}"]
+					if (lcText) {
+						try {
+							lockCodesRaw = new JsonSlurper().parseText(lcText)
+						} catch (Exception e) {
+							logError("Unable to read lock codes for the selected lock")
+						}
+					}
+					def lockCodeEntries = lockCodesRaw instanceof Map ? lockCodesRaw.values() : (lockCodesRaw instanceof Collection ? lockCodesRaw : [])
+					lockCodeEntries.each { lockCodeValue ->
+						if (lockCodeValue instanceof Map && lockCodeValue.code != null && lockCodeValue.name != null) {
+							lockCodes << ["${lockCodeValue.code}": "${lockCodeValue.name}"]
+						}
 					}
 
 					input "selectedLockCodes", 'enum', title: "Lock Codes that disarm", required: false, multiple:true, submitOnChange:true, options: lockCodes
-					ifDebug("lock codes options: ${lockCodes}")
-					ifDebug("selected lock codes: ${selectedLockCodes}")
 			}
 	}
 }
@@ -331,8 +339,6 @@ def editCodeMap(message) {
 
 def zoneMapsPage() {
     ifDebug("Showing zoneMapsPage")
-	def childDevices = getChildDevices()
-	ifDebug("getChildDevice: ${childDevices}")
     if (getChildDevices().size() == 0 && !state.envisalinkIntegrationInstalled)
     {
         createEnvisalinkParentDevice()
@@ -403,7 +409,7 @@ def editZoneMapPage(message) {
 	def zType = "Contact"
     state.editingZone = true
     state.editedZoneDNI = message.deviceNetworkId;
-	log.debug("editing zoneDevice: name = '${zoneDevice.name}' label = '${zoneDevice.label}' ")
+	ifDebug("editing zoneDevice: name = '${zoneDevice.name}' label = '${zoneDevice.label}' ")
     if (zoneDevice.capabilities.find { item -> item.name.startsWith('Motion')}){
         paragraphText = paragraphText + "Motion Sensor\n"
 		zType = "Motion"
@@ -441,10 +447,11 @@ def editZoneMapPage(message) {
 
 def clearStateVariables(){
 	ifDebug("Clearing State Variables just in case.")
-    state.EnvisalinkDeviceName = null
-    state.EnvisalinkIP = null
-    state.EnvisalinkPassword = null
-    state.EnvisalinkCode = null
+    state.remove("EnvisalinkDeviceName")
+    state.remove("EnvisalinkIP")
+    state.remove("EnvisalinkPassword")
+    state.remove("EnvisalinkCode")
+	state.remove("EnvisalinkInstallerCode")
 }
 
 def createEnvisalinkParentDevice(){
@@ -470,12 +477,9 @@ def castEnvisalinkDeviceStates(){
     ifDebug("Setting state.EnvisalinkDeviceName ${state.EnvisalinkDeviceName}")
     state.EnvisalinkIP = envisalinkIP
     ifDebug("Setting state.EnvisalinkIP ${state.EnvisalinkIP}")
-    state.EnvisalinkPassword = envisalinkPassword
-    ifDebug("Setting state.EnvisalinkPassword ${state.EnvisalinkPassword}")
-    state.EnvisalinkCode = envisalinkMasterCode
-    ifDebug("Setting state.EnvisalinkCode ${state.EnvisalinkCode}")
-	state.EnvisalinkInstallerCode = envisalinkInstallerCode
-	ifDebug("Setting state.EnvisalinkInstallerCode ${state.envisalinkInstallerCode}")
+	state.remove("EnvisalinkPassword")
+	state.remove("EnvisalinkCode")
+	state.remove("EnvisalinkInstallerCode")
     if (getEnvisalinkDevice()){
         ifDebug("Found a Child Envisalink ${getEnvisalinkDevice().label}")
     }
@@ -528,16 +532,16 @@ def editZone(){
 		def childZoneLabel = childZone.getDisplayName()
 		def CZT = childZone.getDeviceNetworkId().tokenize("_")
 		def childZoneType = (CZT.size() < 3)? "0":(CZT[1] == "M")? "1":(CZT[1] == "C")? "2":(CZT[1] == "S")? "3":(CZT[1] == "G")? "4": "0"
-		log.debug("CZT size = ${CZT.size()}  CZT [${CZT}]  childZoneType [${childZoneType}]")
-		log.debug("Attempting edit of zone: [${childZoneLabel}] [${childZoneType}] [${childZoneId}] to  [${newZoneLabel}] [${newZoneType}] [${childZoneId}]")
+		ifDebug("CZT size = ${CZT.size()}  CZT [${CZT}]  childZoneType [${childZoneType}]")
+		ifDebug("Attempting edit of zone: [${childZoneLabel}] [${childZoneType}] [${childZoneId}] to  [${newZoneLabel}] [${newZoneType}] [${childZoneId}]")
 		if (childZoneType != newZoneType) {
 			// remove the zone and recreate
 			getEnvisalinkDevice().removeZone(zoneName:childZone.getDisplayName(), deviceNetworkId: childZone.getDeviceNetworkId())
-			log.debug("Removed zone: [${childZoneLabel}] [${childZoneType}] [${childZoneId}]")
+			ifDebug("Removed zone: [${childZoneLabel}] [${childZoneType}] [${childZoneId}]")
 			if (newZoneType != "99") {
 				//recreate the zone
 				createNewZone(newZoneLabel, newZoneType, childZoneId.toInteger())
-				log.debug("Created zone: [${childZoneLabel}] [${childZoneType}] [${childZoneId}]")
+				ifDebug("Created zone: [${childZoneLabel}] [${childZoneType}] [${childZoneId}]")
 			}
 		} else if (childZoneLabel != newZoneLabel) {
 			childZone.setDisplayName(newZoneLabel)
@@ -552,70 +556,46 @@ def editZone(){
 
 //events and actions
 def hsmHandler(evt) {
-    //def myStatus = getEnvisalinkDevice().currentValue("Status")
-    //log.info "ENVIS HSM Value: $evt.value Status: ${myStatus} LAST: $state.lastHSMEvent"
-	// 
-    //the call below appears unnecessary and causes it to throw a quick disarm hsm event during armHome/armAway events. 
-	//sendEvent(name: "HSM Event", value: evt.value)
-    if (evt.value == state.lastHSMEvent) return
-	state.lastHSMEvent = evt.value
-
-	def lock
-	if (!lock)
-	{
-		lock = true
-		if (getEnvisalinkDevice().currentValue("Status") != "Exit Delay in Progress"
-			&& getEnvisalinkDevice().currentValue("Status") != "Entry Delay in Progress"
-		   	&& evt.value != "disarmed") {
-				if (evt.value && state.enableHSM)
-				{
-					ifDebug("HSM is enabled")
-					ifDebug("Current Status: ${getEnvisalinkDevice().currentValue("Status").contains("Armed")}")
-					if (!getEnvisalinkDevice().currentValue("Status").contains("Armed"))
-					{
-						switch(evt.value){
-							case "armedAway":
-								ifDebug("Sending Arm Away")
-								speakArmingAway()
-								getEnvisalinkDevice().ArmAway()
-                                //myStatus = getEnvisalinkDevice().currentValue("Status")
-                                //log.info "HSM Sending evt.value=armedAway: getEnvisalinkDevice status=${myStatus}"
-							break
-							case "armedHome":
-								ifDebug("Sending Arm Home")
-								speakArmingHome()
-								getEnvisalinkDevice().ArmHome()
-                                //myStatus = getEnvisalinkDevice().currentValue("Status")
-                                //log.info "HSM Sending evt.value=armedHome: getEnvisalinkDevice status=${myStatus}"
-							break
-							case "armedNight":
-								ifDebug("Sending Arm Night")
-								speakArmingNight()
-								getEnvisalinkDevice().ArmNight()
-                                //myStatus = getEnvisalinkDevice().currentValue("Status")
-                                //log.info "ENVIS HSM Arming Night: Status: ${myStatus}"
-							break
-						}
-					}
-				}
-		} else {
-			if (evt.value == "disarmed")
-			{
-				if (state.enableHSM)
-				{
-					ifDebug("HSM is enabled")
-					ifDebug("Sending Disarm")
-					if (getEnvisalinkDevice().currentValue("Status") != "Ready" && getEnvisalinkDevice().currentValue("Status") != "Disarmed")
-					{
-						speakDisarming()
-						getEnvisalinkDevice().Disarm()
-                        //myStatus = getEnvisalinkDevice().currentValue("Status")
-                        //log.info "HSM Sending evt.value=disarmed HSM getEnvisalinkDevice status: ${myStatus}"
-					}
-				}
-			}
+	if (!evt?.value || evt.value == state.lastHSMEvent || state.hsmHandlerRunning) return
+	state.hsmHandlerRunning = true
+	try {
+		def envisalinkDevice = getEnvisalinkDevice()
+		if (!envisalinkDevice) {
+			logError("Unable to process HSM event because the Envisalink device is missing")
+			return
 		}
-		lock = false;
+		state.lastHSMEvent = evt.value
+		def currentStatus = envisalinkDevice.currentValue("Status") ?: ""
+		if (evt.value == "disarmed") {
+			if (state.enableHSM && currentStatus != "Ready" && currentStatus != "Disarmed") {
+				ifDebug("Sending Disarm")
+				speakDisarming()
+				envisalinkDevice.Disarm()
+			}
+			return
+		}
+		if (currentStatus == "Exit Delay in Progress" || currentStatus == "Entry Delay in Progress") return
+		if (!state.enableHSM || currentStatus.contains("Armed")) return
+
+		switch(evt.value) {
+			case "armedAway":
+				ifDebug("Sending Arm Away")
+				speakArmingAway()
+				envisalinkDevice.ArmAway()
+				break
+			case "armedHome":
+				ifDebug("Sending Arm Home")
+				speakArmingHome()
+				envisalinkDevice.ArmHome()
+				break
+			case "armedNight":
+				ifDebug("Sending Arm Night")
+				speakArmingNight()
+				envisalinkDevice.ArmNight()
+				break
+		}
+	} finally {
+		state.hsmHandlerRunning = false
 	}
 }
 
@@ -739,6 +719,7 @@ private unlockIt(){
 
 def switchItArmed(){
 	ifDebug("switchItArmed")
+	cancelDelayedSwitchActions()
 	ifDebug("On Delay: ${onSwitchDelayArmed}")
 	ifDebug("Off Delay: ${offSwitchDelayArmed}")
 	if (onSwitchDelayArmed){
@@ -760,6 +741,7 @@ def switchItArmed(){
 
 def switchItDisarmed(){
 	ifDebug("switchItDisarmed")
+	cancelDelayedSwitchActions()
 	ifDebug("On Delay: ${offSwitchDelayDisarmed}")
 	ifDebug("Off Delay: ${onSwitchDelayDisarmed}")
 	if (onSwitchDelayDisarmed){
@@ -806,32 +788,41 @@ def offNoOnSwitchesOff(){
 }
 
 def lockUseHandler(evt){
-	log.warn "lockUseHandler ${evt.displayName}"
-    def data = evt.data
-    def isEncrypted = false
-    if (data && !data[0].startsWith("{")) {
-       ifDebug("encr data:${data}")
-       data = decrypt(data)
-       isEncrypted = true
-    }
-
-	if (data){
-		ifDebug("lockUseHandler- device:${evt.displayName}, value:${evt.value}, data:${data}, type:${evt.type}, wasEncrypted:${isEncrypted}")
-		def dataJson = new JsonSlurper().parseText(data)
-		ifDebug("dataJson - ${dataJson}")
-		dataJson.each{
-			ifDebug(it)
-			def lockCodeValue = it.getValue()
-			ifDebug(lockCodeValue)
-			ifDebug(lockCodeValue.code)
-			def foundCode = selectedLockCodes.find{it == lockCodeValue.code}
-			if (foundCode){
-				ifDebug("Found Lock Code")
-				getEnvisalinkDevice().Disarm()
-			}
-    	}
+	def data = evt?.data?.toString()?.trim()
+	if (!data) return
+	if (!data.startsWith("{") && !data.startsWith("[")) {
+		try {
+			data = decrypt(data)
+		} catch (Exception e) {
+			logError("Unable to read lock event data")
+			return
+		}
 	}
+	if (!data) return
 
+	try {
+		def dataJson = new JsonSlurper().parseText(data)
+		def lockCodeEntries = dataJson instanceof Map ? dataJson.values() : (dataJson instanceof Collection ? dataJson : [])
+		def usedCodes = lockCodeEntries.collect { it instanceof Map ? it.code?.toString() : null }.findAll { it }
+		def selectedCodes = selectedLockCodes instanceof Collection ? selectedLockCodes : (selectedLockCodes ? [selectedLockCodes] : [])
+		if (usedCodes.any { usedCode -> selectedCodes.any { it?.toString() == usedCode } }) {
+			def envisalinkDevice = getEnvisalinkDevice()
+			if (envisalinkDevice) {
+				ifDebug("Disarming after a selected lock code was used")
+				envisalinkDevice.Disarm()
+			} else {
+				logError("Unable to disarm because the Envisalink device is missing")
+			}
+		}
+	} catch (Exception e) {
+		logError("Unable to process lock event data")
+	}
+}
+
+private cancelDelayedSwitchActions() {
+	["onSwitchesOn", "offSwitchesOff", "offNoOnSwitchesOff", "onSwitchesOff", "offSwitchesOn"].each {
+		unschedule(it)
+	}
 }
 
 // def userCodeDisarm(data){
@@ -875,10 +866,9 @@ private logError(msg){
 
 def getEnvisalinkDevice(){
 	ifDebug("getEnvisalinkDevice")
-	def childDevices = getChildDevices()
-//	ifDebug("childDevices: ${childDevices}")
-	def envisalinkDevice = childDevices[0]
-//	ifDebug("childDevices: ${envisalinkDevice}")
+	def childDevices = getChildDevices() ?: []
+	def envisalinkDevice = childDevices.find { it.deviceNetworkId == state.EnvisalinkDNI } ?:
+		childDevices.find { it.getTypeName() == "Envisalink Connection" }
 	return envisalinkDevice
 }
 
@@ -897,6 +887,11 @@ def initialize() {
 	log.info "initialize"
 	sendEvent(name: "Initialized", value: "online")
 	unsubscribe()
+	cancelDelayedSwitchActions()
+	state.remove("EnvisalinkPassword")
+	state.remove("EnvisalinkCode")
+	state.remove("EnvisalinkInstallerCode")
+	state.hsmHandlerRunning = false
 	state.creatingCodeMap = false;
     state.creatingZone = false;
 	if (state.codeMaps == null){
@@ -912,6 +907,10 @@ def uninstalled() {
 }
 
 /***********************************************************************************************************************
+* Version: 0.5.5
+*   Prevent credential logging and remove copied credentials from app state
+*   Harden lock-code and HSM handling and cancel stale delayed switch actions
+*
 * Version: 0.5.3
 *   Fixed spurious HSM Event in hsmHandler()
 * 
